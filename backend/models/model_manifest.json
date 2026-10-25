@@ -1,0 +1,147 @@
+{
+  "model_architecture": "TF-IDF (1,2) + LogisticRegression(C=2.0, balanced)",
+  "vocabulary_size": 964,
+  "metrics": {
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1_score": 1.0,
+    "roc_auc": 1.0,
+    "confusion_matrix": [
+      [
+        600,
+        0
+      ],
+      [
+        0,
+        600
+      ]
+    ],
+    "test_sample_count": 1200,
+    "train_sample_count": 4800
+  },
+  "top_deceptive_indicators": [
+    {
+      "word": "buy",
+      "coefficient": 3.3769
+    },
+    {
+      "word": "best",
+      "coefficient": 3.0937
+    },
+    {
+      "word": "today",
+      "coefficient": 2.832
+    },
+    {
+      "word": "seller",
+      "coefficient": 2.7946
+    },
+    {
+      "word": "good good",
+      "coefficient": 2.7275
+    },
+    {
+      "word": "product",
+      "coefficient": 2.1911
+    },
+    {
+      "word": "supreme",
+      "coefficient": 2.1811
+    },
+    {
+      "word": "excellent",
+      "coefficient": 2.1811
+    },
+    {
+      "word": "market",
+      "coefficient": 2.1811
+    },
+    {
+      "word": "market today",
+      "coefficient": 2.1811
+    },
+    {
+      "word": "high quality",
+      "coefficient": 2.1811
+    },
+    {
+      "word": "completely",
+      "coefficient": 1.9738
+    },
+    {
+      "word": "magic",
+      "coefficient": 1.9378
+    },
+    {
+      "word": "thanks",
+      "coefficient": 1.8962
+    },
+    {
+      "word": "thanks seller",
+      "coefficient": 1.8962
+    }
+  ],
+  "top_authentic_indicators": [
+    {
+      "word": "days",
+      "coefficient": -2.0023
+    },
+    {
+      "word": "does",
+      "coefficient": -1.99
+    },
+    {
+      "word": "design",
+      "coefficient": -1.6535
+    },
+    {
+      "word": "daily",
+      "coefficient": -1.6117
+    },
+    {
+      "word": "slightly",
+      "coefficient": -1.5257
+    },
+    {
+      "word": "use",
+      "coefficient": -1.4847
+    },
+    {
+      "word": "weeks",
+      "coefficient": -1.4714
+    },
+    {
+      "word": "using",
+      "coefficient": -1.462
+    },
+    {
+      "word": "build",
+      "coefficient": -1.462
+    },
+    {
+      "word": "build quality",
+      "coefficient": -1.462
+    },
+    {
+      "word": "overall works",
+      "coefficient": -1.462
+    },
+    {
+      "word": "overall",
+      "coefficient": -1.462
+    },
+    {
+      "word": "price",
+      "coefficient": -1.462
+    },
+    {
+      "word": "ve",
+      "coefficient": -1.462
+    },
+    {
+      "word": "ve using",
+      "coefficient": -1.462
+    }
+  ]
+}
