@@ -1,6 +1,7 @@
 {
   "model_architecture": "TF-IDF (1,2) + LogisticRegression(C=2.0, balanced)",
   "vocabulary_size": 964,
+  "sha256": "8a2bb76d133d1ad5c4058f1eb9270f0ee0b96ff3533c389c2917e8411d3bb757",
   "metrics": {
     "accuracy": 1.0,
     "precision": 1.0,

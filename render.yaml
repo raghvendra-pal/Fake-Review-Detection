@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: trustlens-api
+    runtime: python
+    buildCommand: "pip install --no-cache-dir -r backend/requirements.txt && python backend/scripts/train.py"
+    startCommand: "uvicorn backend.main:app --host 0.0.0.0 --port $PORT"
+    plan: free
+    region: oregon
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: SECRET_KEY
+        generateValue: true
+      - key: CORS_ORIGINS
+        value: "https://*.vercel.app,http://localhost:3000"
+      - key: DATABASE_URL
+        value: "sqlite:///./trustlens.db"

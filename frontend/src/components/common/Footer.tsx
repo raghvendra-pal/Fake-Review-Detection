@@ -22,6 +22,7 @@ export default function Footer() {
           <div className="flex flex-col gap-2">
             <span className="font-semibold text-white uppercase tracking-wider text-[10px]">Tools</span>
             <Link href="/" className="hover:text-white transition-colors">URL Analyzer</Link>
+            <Link href="/extension" className="hover:text-white transition-colors">Chrome Extension & Bookmarklet</Link>
             <Link href="/bulk" className="hover:text-white transition-colors">Batch CSV Processor</Link>
             <Link href="/compare" className="hover:text-white transition-colors">Side-by-Side Compare</Link>
             <Link href="/quick-check" className="hover:text-white transition-colors">Single Review Checker</Link>

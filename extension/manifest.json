@@ -1,0 +1,62 @@
+{
+  "manifest_version": 3,
+  "name": "TrustLens - Fake Review & Scam Inspector",
+  "version": "1.0.0",
+  "description": "Extract reviews with 1-click from Amazon, Flipkart, Trustpilot, Google Maps, and Yelp to analyze authenticity with TrustLens.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "*://*.amazon.com/*",
+    "*://*.amazon.in/*",
+    "*://*.amazon.co.uk/*",
+    "*://*.amazon.de/*",
+    "*://*.amazon.ca/*",
+    "*://*.flipkart.com/*",
+    "*://*.trustpilot.com/*",
+    "*://*.google.com/maps/*",
+    "*://maps.google.com/*",
+    "*://*.yelp.com/*",
+    "http://localhost:8000/*",
+    "http://127.0.0.1:8000/*",
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "TrustLens Review Inspector",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self';"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.amazon.com/*",
+        "*://*.amazon.in/*",
+        "*://*.amazon.co.uk/*",
+        "*://*.amazon.de/*",
+        "*://*.amazon.ca/*",
+        "*://*.flipkart.com/*",
+        "*://*.trustpilot.com/*",
+        "*://*.google.com/maps/*",
+        "*://maps.google.com/*",
+        "*://*.yelp.com/*"
+      ],
+      "js": ["extractor.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

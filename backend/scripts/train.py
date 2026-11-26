@@ -1,7 +1,13 @@
 import os
+import sys
+
+_cur_dir = os.path.dirname(os.path.abspath(__file__))
+if _cur_dir not in sys.path:
+    sys.path.insert(0, _cur_dir)
+
+import csv
 import json
 import joblib
-import pandas as pd
 import numpy as np
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
@@ -21,13 +27,19 @@ def train_and_evaluate(data_path: str, model_save_path: str, manifest_save_path:
         from generate_data import generate_synthetic_dataset
         generate_synthetic_dataset(data_path, count=6000)
         
-    df = pd.read_csv(data_path)
-    df = df.dropna(subset=["review_text", "label"])
-    df["review_text"] = df["review_text"].astype(str)
-    df["label"] = df["label"].astype(int)
-    
-    X = df["review_text"]
-    y = df["label"]
+    X = []
+    y = []
+    with open(data_path, "r", encoding="utf-8") as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            txt = row.get("review_text", "").strip()
+            lbl = row.get("label")
+            if txt and lbl is not None and lbl != "":
+                X.append(txt)
+                y.append(int(lbl))
+                
+    X = np.array(X)
+    y = np.array(y)
     
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.20, random_state=42, stratify=y
@@ -99,9 +111,19 @@ def train_and_evaluate(data_path: str, model_save_path: str, manifest_save_path:
     joblib.dump(pipeline_artifact, model_save_path)
     print(f"Saved model pipeline artifact to: {model_save_path}")
     
+    # Compute SHA-256 checksum for model artifact verification
+    import hashlib
+    hasher = hashlib.sha256()
+    with open(model_save_path, "rb") as f:
+        while chunk := f.read(65536):
+            hasher.update(chunk)
+    model_sha256 = hasher.hexdigest()
+    print(f"Model SHA-256: {model_sha256}")
+    
     manifest = {
         "model_architecture": "TF-IDF (1,2) + LogisticRegression(C=2.0, balanced)",
         "vocabulary_size": len(vectorizer.vocabulary_),
+        "sha256": model_sha256,
         "metrics": {
             "accuracy": round(acc, 4),
             "precision": round(prec, 4),

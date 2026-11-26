@@ -3,7 +3,17 @@ import {
   CompareResponse, ArticleCheckResult, DemoItem
 } from "./types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "/api";
+function getApiBase(): string {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (!envUrl) return "/api";
+  const clean = envUrl.replace(/\/+$/, "");
+  if (!clean.endsWith("/api")) {
+    return `${clean}/api`;
+  }
+  return clean;
+}
+
+const API_BASE = getApiBase();
 
 export async function analyzeUrl(url: string): Promise<AnalysisReport | ScraperFallbackResponse> {
   const res = await fetch(`${API_BASE}/analyze-url`, {
@@ -13,7 +23,7 @@ export async function analyzeUrl(url: string): Promise<AnalysisReport | ScraperF
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Network error occurred." }));
-    throw new Error(err.detail || "Failed to analyze URL.");
+    throw new Error(err.detail || err.message || `Failed to analyze URL (HTTP ${res.status}).`);
   }
   return res.json();
 }

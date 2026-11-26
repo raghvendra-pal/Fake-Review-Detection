@@ -1,4 +1,6 @@
 import os
+import json
+import hashlib
 import joblib
 import numpy as np
 from typing import List, Dict, Any, Tuple
@@ -22,16 +24,43 @@ class FakeReviewClassifier:
         return cls._instance
 
     def load_model(self):
-        model_path = settings.MODEL_PATH
+        model_path = os.path.abspath(settings.MODEL_PATH)
+        models_dir = os.path.abspath(os.path.join(settings.BASE_DIR, "..", "models"))
+        
+        # Security: Prevent path traversal by asserting model is strictly inside models_dir
+        if not model_path.startswith(models_dir):
+            print(f"[SECURITY ALERT] Attempted to load model from untrusted path: {model_path}")
+            self.is_loaded = False
+            return
+
         if os.path.exists(model_path):
             try:
+                # Security: Verify SHA-256 against manifest before loading joblib artifact
+                manifest_path = os.path.abspath(settings.MANIFEST_PATH)
+                if os.path.exists(manifest_path):
+                    with open(manifest_path, "r", encoding="utf-8") as mf:
+                        manifest_data = json.load(mf)
+                    expected_hash = manifest_data.get("sha256")
+                    
+                    if expected_hash:
+                        hasher = hashlib.sha256()
+                        with open(model_path, "rb") as mf_file:
+                            while chunk := mf_file.read(65536):
+                                hasher.update(chunk)
+                        actual_hash = hasher.hexdigest()
+                        
+                        if actual_hash.lower() != expected_hash.lower():
+                            print(f"[SECURITY ALERT] Model artifact hash mismatch! Expected: {expected_hash}, Actual: {actual_hash}. Refusing to load.")
+                            self.is_loaded = False
+                            return
+
                 artifact = joblib.load(model_path)
                 self.vectorizer = artifact["vectorizer"]
                 self.classifier = artifact["classifier"]
                 self.feature_names = np.array(self.vectorizer.get_feature_names_out())
                 self.coefs = self.classifier.coef_[0]
                 self.is_loaded = True
-                print(f"[FakeReviewClassifier] Model successfully loaded from {model_path}")
+                print(f"[FakeReviewClassifier] Model verified (SHA-256 OK) and loaded from {model_path}")
             except Exception as e:
                 print(f"[FakeReviewClassifier] Warning: Could not load model: {e}")
                 self.is_loaded = False
@@ -68,10 +97,14 @@ class FakeReviewClassifier:
         
         # Word Attribution (Feature Coefficients)
         attributions = self.explain_prediction(X_vec[0], text)
+        rounded_prob = round(prob, 1)
+        is_uncertain = 42.0 <= rounded_prob <= 58.0
         
         return {
-            "fake_probability": round(prob, 1),
-            "token_attributions": attributions
+            "fake_probability": rounded_prob,
+            "token_attributions": attributions,
+            "uncertain": is_uncertain,
+            "human_review_recommended": is_uncertain
         }
 
     def explain_prediction(self, sparse_vector, raw_text: str) -> List[Dict[str, Any]]:
@@ -118,8 +151,12 @@ class FakeReviewClassifier:
         results = []
         for i, text in enumerate(clean_texts):
             attributions = self.explain_prediction(X_vecs[i], text)
+            rounded_prob = round(float(probs[i]), 1)
+            is_uncertain = 42.0 <= rounded_prob <= 58.0
             results.append({
-                "fake_probability": round(float(probs[i]), 1),
-                "token_attributions": attributions
+                "fake_probability": rounded_prob,
+                "token_attributions": attributions,
+                "uncertain": is_uncertain,
+                "human_review_recommended": is_uncertain
             })
         return results

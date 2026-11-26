@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { analyzeUrl, analyzeReviews, analyzeFile, getDemo } from "@/lib/api";
 import MultiStepLoader from "../common/MultiStepLoader";
+import AmazonHelpPanel from "../common/AmazonHelpPanel";
 
 const PLACEHOLDER_URLS = [
   "https://www.amazon.com/dp/B08N5WRWNW (Earbuds)",
@@ -69,19 +70,34 @@ export default function HeroSearch() {
 
     try {
       const res = await analyzeUrl(target);
-      if ("is_blocked" in res && res.is_blocked) {
+      
+      // Check for blocked scraper or graceful fallback response
+      if (("is_blocked" in res && res.is_blocked) || ("fallback_options" in res && !res.success)) {
         setIsLoading(false);
         setBlockedFallback(res);
+        if ("message" in res && res.message) {
+          setErrorMsg(res.message);
+        }
+        return;
+      }
+
+      // Check if backend returned an explicit unblocked failure response
+      if ("success" in res && res.success === false) {
+        setIsLoading(false);
+        const errMsg = (res as any).message || (res as any).detail || "Could not analyze the provided URL.";
+        setErrorMsg(errMsg);
         return;
       }
 
       // Successful analysis: redirect to report
       const report = res as any;
-      if (report.id) {
+      if (report && report.id) {
         sessionStorage.setItem(`trustlens_report_${report.id}`, JSON.stringify(report));
         router.push(`/report/${report.id}`);
       } else {
-        throw new Error("No report ID returned.");
+        setIsLoading(false);
+        const specificError = report?.message || report?.detail || report?.error || "Unable to generate analysis report for this URL. Please verify the URL or try pasting reviews directly.";
+        setErrorMsg(specificError);
       }
     } catch (err: any) {
       setIsLoading(false);
@@ -396,39 +412,18 @@ export default function HeroSearch() {
           </div>
         )}
 
-        {/* Graceful Scraper Fallback Notification */}
+        {/* Graceful Scraper Fallback & Amazon Help Panel */}
         {blockedFallback && (
-          <div className="mt-4 p-4 rounded-2xl bg-amber-500/[0.08] border border-amber-500/30 text-xs space-y-3">
-            <div className="flex items-start gap-2.5">
-              <ShieldAlert className="w-5 h-5 text-amber-400 flex-shrink-0 mt-0.5" />
-              <div>
-                <h4 className="font-bold text-white text-sm">Automated Scraping Blocked</h4>
-                <p className="text-slate-300 mt-1 leading-relaxed">{blockedFallback.message}</p>
-              </div>
-            </div>
-
-            <div className="pt-2 border-t border-white/5 flex flex-wrap items-center gap-3">
-              <span className="text-slate-400 font-medium">Instant Alternatives:</span>
-              <button
-                onClick={() => handleLoadDemo("ecommerce-burst")}
-                className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors"
-              >
-                Load Realistic Sample Demo
-              </button>
-              <button
-                onClick={() => setActiveTab("text")}
-                className="px-3 py-1 rounded-lg bg-electric-cyan/20 text-electric-cyan hover:bg-electric-cyan/30 font-semibold transition-colors"
-              >
-                Paste Raw Reviews
-              </button>
-              <button
-                onClick={() => setActiveTab("file")}
-                className="px-3 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-white font-semibold transition-colors"
-              >
-                Upload CSV File
-              </button>
-            </div>
-          </div>
+          <AmazonHelpPanel
+            platformName={blockedFallback.platform || "Amazon"}
+            targetUrl={blockedFallback.target_url}
+            errorMessage={blockedFallback.message}
+            onSwitchToTab={(tab) => {
+              setActiveTab(tab);
+              setErrorMsg(null);
+            }}
+            onLoadDemo={handleLoadDemo}
+          />
         )}
       </div>
 

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, field_validator
 from typing import List, Optional, Dict, Any
 
 # ==========================================
@@ -8,34 +8,52 @@ from typing import List, Optional, Dict, Any
 class AnalyzeUrlRequest(BaseModel):
     url: str = Field(..., description="Target product or review page URL", min_length=4, max_length=2048)
 
+    @field_validator("url")
+    @classmethod
+    def validate_scheme(cls, v: str) -> str:
+        s = v.strip().lower()
+        if not (s.startswith("http://") or s.startswith("https://")):
+            raise ValueError("Only 'http://' and 'https://' URLs are supported.")
+        return v.strip()
+
 class ReviewInputItem(BaseModel):
-    reviewer_name: Optional[str] = Field("Anonymous", description="Username or display name of reviewer")
-    reviewer_id: Optional[str] = Field(None, description="Unique account identifier if available")
-    review_text: str = Field(..., description="Full text of the review", min_length=1)
+    reviewer_name: Optional[str] = Field("Anonymous", description="Username or display name of reviewer", max_length=128)
+    reviewer_id: Optional[str] = Field(None, description="Unique account identifier if available", max_length=128)
+    review_text: str = Field(..., description="Full text of the review", min_length=1, max_length=25000)
     rating: Optional[float] = Field(5.0, ge=0.5, le=5.0, description="Star rating from 1 to 5")
-    date: Optional[str] = Field(None, description="ISO or human readable date string")
-    helpful_votes: Optional[int] = Field(0, ge=0, description="Number of helpful votes")
+    date: Optional[str] = Field(None, description="ISO or human readable date string", max_length=64)
+    helpful_votes: Optional[int] = Field(0, ge=0, le=1000000, description="Number of helpful votes")
     verified_purchase: Optional[bool] = Field(False, description="Verified buyer status")
 
 class AnalyzeReviewsRequest(BaseModel):
-    title: Optional[str] = Field("Custom Review Dataset", description="Listing or business title")
+    title: Optional[str] = Field("Custom Review Dataset", description="Listing or business title", max_length=512)
     reviews: List[ReviewInputItem] = Field(..., min_length=1, max_length=10000, description="Array of review objects")
 
 class QuickCheckRequest(BaseModel):
-    text: str = Field(..., min_length=3, max_length=15000, description="Single review text to evaluate")
+    text: str = Field(..., min_length=3, max_length=25000, description="Single review text to evaluate")
     rating: Optional[float] = Field(5.0, ge=1.0, le=5.0, description="Optional rating for mismatch test")
 
 class CompareTargetItem(BaseModel):
-    title: str = Field(..., description="Item or store name")
-    url: Optional[str] = Field(None, description="Optional product URL")
-    reviews: List[ReviewInputItem] = Field(..., min_length=1, description="Reviews for this target")
+    title: str = Field(..., description="Item or store name", max_length=256)
+    url: Optional[str] = Field(None, description="Optional product URL", max_length=2048)
+    reviews: List[ReviewInputItem] = Field(..., min_length=1, max_length=2000, description="Reviews for this target")
 
 class CompareRequest(BaseModel):
     targets: List[CompareTargetItem] = Field(..., min_length=2, max_length=5, description="2 to 5 targets to compare")
 
 class ArticleCheckRequest(BaseModel):
-    url: Optional[str] = Field(None, description="URL of the news article")
-    text: Optional[str] = Field(None, description="Raw text of the article headline and body")
+    url: Optional[str] = Field(None, description="URL of the news article", max_length=2048)
+    text: Optional[str] = Field(None, description="Raw text of the article headline and body", max_length=50000)
+
+    @field_validator("url")
+    @classmethod
+    def validate_article_url(cls, v: Optional[str]) -> Optional[str]:
+        if v:
+            s = v.strip().lower()
+            if not (s.startswith("http://") or s.startswith("https://")):
+                raise ValueError("Article URL must use http:// or https://")
+            return v.strip()
+        return v
 
 # ==========================================
 # Output Schemas

@@ -26,3 +26,25 @@ def test_classifier_batch_prediction():
     results = clf.predict_batch(texts)
     assert len(results) == 2
     assert results[0]["fake_probability"] > results[1]["fake_probability"]
+    assert "uncertain" in results[0]
+    assert "human_review_recommended" in results[0]
+
+def test_classifier_abstention_and_calibration():
+    clf = FakeReviewClassifier.get_instance()
+    # Boundary / ambiguous review
+    res = clf.predict_single("Average product. Works fine.")
+    assert "uncertain" in res
+    assert "human_review_recommended" in res
+    if 42.0 <= res["fake_probability"] <= 58.0:
+        assert res["uncertain"] is True
+        assert res["human_review_recommended"] is True
+    else:
+        assert res["uncertain"] is False
+
+def test_classifier_deterministic_scoring():
+    clf = FakeReviewClassifier.get_instance()
+    text = "Solid keyboard with tactile keys. Recommended for office use."
+    run1 = clf.predict_single(text)
+    run2 = clf.predict_single(text)
+    assert run1["fake_probability"] == run2["fake_probability"]
+    assert run1["token_attributions"] == run2["token_attributions"]

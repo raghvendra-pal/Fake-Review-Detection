@@ -1,6 +1,6 @@
 import os
 import random
-import pandas as pd
+import csv
 
 # Seeds for deterministic generation
 random.seed(42)
@@ -120,9 +120,11 @@ def generate_synthetic_dataset(output_path: str, count: int = 5000):
         records.append({"review_text": text, "rating": rating, "label": label})
         
     random.shuffle(records)
-    df = pd.DataFrame(records)
-    df.to_csv(output_path, index=False)
-    print(f"Generated {len(df)} synthetic review records saved to {output_path}")
+    with open(output_path, "w", newline="", encoding="utf-8") as f:
+        writer = csv.DictWriter(f, fieldnames=["review_text", "rating", "label"])
+        writer.writeheader()
+        writer.writerows(records)
+    print(f"Generated {len(records)} synthetic review records saved to {output_path}")
 
 if __name__ == "__main__":
     current_dir = os.path.dirname(os.path.abspath(__file__))

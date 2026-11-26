@@ -13,11 +13,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend application code
-COPY . .
+# Copy backend application code into /app/backend
+COPY . /app/backend
+
+ENV PYTHONPATH=/app
 
 # Generate training data & train model if not already present
-RUN python scripts/train.py
+RUN python /app/backend/scripts/train.py
 
 EXPOSE 8000
 

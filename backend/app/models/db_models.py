@@ -1,4 +1,5 @@
 import uuid
+import secrets
 from datetime import datetime, timezone
 from sqlalchemy import Column, String, Float, Integer, Text, Boolean, DateTime, JSON, ForeignKey
 from sqlalchemy.orm import declarative_base, relationship
@@ -36,6 +37,8 @@ class AnalysisReport(Base):
     # }
     
     network_graph = Column(JSON, default=dict)  # nodes, links, rings
+    owner_token = Column(String(64), nullable=True, default=lambda: secrets.token_hex(16))
+    is_public = Column(Boolean, default=True)
     created_at = Column(DateTime, default=get_utc_now)
 
     # Relationships

@@ -1,10 +1,12 @@
 import io
+import csv
 import json
-import pandas as pd
+import secrets
 from typing import List, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from sqlalchemy.orm import Session
 
+from backend.app.core.config import settings
 from backend.app.core.database import get_db
 from backend.app.models.db_models import AnalysisReport, ReviewRecord
 from backend.app.models.schemas import (
@@ -82,6 +84,7 @@ def run_pipeline(
     # 7. Persist to Database if session provided
     report_id = None
     if db is not None:
+        owner_tok = secrets.token_hex(16)
         db_report = AnalysisReport(
             target_url=target_url,
             target_title=target_title,
@@ -92,7 +95,9 @@ def run_pipeline(
             total_reviews=report_dict["total_reviews"],
             flagged_reviews=report_dict["flagged_reviews_count"],
             metrics_summary=report_dict["metrics_summary"],
-            network_graph=network_graph
+            network_graph=network_graph,
+            owner_token=owner_tok,
+            is_public=True
         )
         db.add(db_report)
         db.flush()
@@ -134,6 +139,7 @@ def run_pipeline(
         "flagged_reviews": report_dict["flagged_reviews_count"],
         "metrics_summary": report_dict["metrics_summary"],
         "network_graph": network_graph,
+        "owner_token": db_report.owner_token if db is not None else None,
         "reviews": report_dict["forensic_reviews"],
         "accounts": account_cards
     }
@@ -150,13 +156,14 @@ async def analyze_url(req: AnalyzeUrlRequest, db: Session = Depends(get_db)):
         # Return graceful fallback payload
         return {
             "success": False,
-            "is_blocked": scrape_res.get("is_blocked", True),
-            "status_code": scrape_res.get("status_code", 403),
-            "error_code": scrape_res.get("error_code", "SCRAPER_BLOCKED"),
+            "is_blocked": scrape_res.get("is_blocked", False),
+            "status_code": scrape_res.get("status_code", 400),
+            "error_code": scrape_res.get("error_code", "SCRAPER_ERROR"),
+            "platform": scrape_res.get("platform", "generic"),
             "target_url": req.url,
             "title": scrape_res.get("title", "Target Listing"),
-            "message": scrape_res.get("message", "Scraping was blocked by anti-bot verification."),
-            "fallback_options": ["paste_raw_text", "upload_csv", "try_demo"],
+            "message": scrape_res.get("message", "Scraping was blocked by anti-bot verification or no reviews could be extracted."),
+            "fallback_options": scrape_res.get("fallback_options", ["bookmarklet", "chrome_extension", "paste_raw_text", "upload_csv", "try_demo"]),
             "suggested_demo": "ecommerce-burst"
         }
         
@@ -202,23 +209,51 @@ async def analyze_file(
     filename = file.filename.lower()
     content = await file.read()
     
+    # Security: File upload size limit enforcement
+    if len(content) > settings.MAX_UPLOAD_SIZE_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"Uploaded file exceeds maximum size limit of {settings.MAX_UPLOAD_SIZE_BYTES // (1024 * 1024)}MB."
+        )
+    
     reviews = []
+    raw_rows = []
     
     try:
         if filename.endswith(".csv"):
-            df = pd.read_csv(io.BytesIO(content))
+            text_data = content.decode("utf-8", errors="replace")
+            reader = csv.DictReader(io.StringIO(text_data))
+            raw_rows = [row for row in reader if any(row.values())]
         elif filename.endswith((".xlsx", ".xls")):
-            df = pd.read_excel(io.BytesIO(content))
+            # Security: Validate ZIP/OOXML magic bytes for modern spreadsheet containers
+            if not content.startswith(b"PK\x03\x04"):
+                raise HTTPException(status_code=400, detail="Invalid Excel spreadsheet binary format.")
+            import openpyxl
+            wb = openpyxl.load_workbook(io.BytesIO(content), data_only=True)
+            ws = wb.active
+            rows_iter = ws.iter_rows(values_only=True)
+            header_row = next(rows_iter, None)
+            if header_row:
+                headers = [str(h).strip() if h is not None else f"col_{i}" for i, h in enumerate(header_row)]
+                for r in rows_iter:
+                    if any(val is not None for val in r):
+                        row_dict = {headers[i]: r[i] for i in range(min(len(headers), len(r)))}
+                        raw_rows.append(row_dict)
         elif filename.endswith(".json"):
-            json_data = json.loads(content.decode("utf-8"))
+            json_data = json.loads(content.decode("utf-8", errors="replace"))
             if isinstance(json_data, dict):
-                json_data = json_data.get("reviews", [json_data])
-            df = pd.DataFrame(json_data)
+                raw_rows = json_data.get("reviews", [json_data])
+            elif isinstance(json_data, list):
+                raw_rows = json_data
         else:
             raise HTTPException(status_code=400, detail="Unsupported file format. Please upload CSV, XLSX, or JSON.")
             
+        if not raw_rows:
+            raise HTTPException(status_code=400, detail="Uploaded file contains no data rows.")
+            
         # Normalize column names
-        cols = {c.lower().strip().replace(" ", "_"): c for c in df.columns}
+        sample_keys = list(raw_rows[0].keys())
+        cols = {str(c).lower().strip().replace(" ", "_"): c for c in sample_keys}
         
         # Identify text column
         text_col = None
@@ -257,20 +292,30 @@ async def analyze_file(
                 verif_col = cols[candidate]
                 break
 
-        for _, row in df.iterrows():
-            t_val = str(row[text_col]) if pd.notna(row[text_col]) else ""
-            if len(t_val.strip()) < 3:
+        for row in raw_rows:
+            raw_t = row.get(text_col)
+            t_val = str(raw_t).strip() if raw_t is not None else ""
+            if len(t_val) < 3 or t_val.lower() in ("nan", "none", "null"):
                 continue
                 
-            u_val = str(row[name_col]) if name_col and pd.notna(row[name_col]) else "Anonymous"
+            raw_u = row.get(name_col) if name_col else None
+            u_val = str(raw_u).strip() if raw_u is not None and str(raw_u).lower() not in ("nan", "none", "null") else "Anonymous"
+            
             r_val = 5.0
-            if rating_col and pd.notna(row[rating_col]):
+            if rating_col and row.get(rating_col) is not None:
                 try:
                     r_val = float(row[rating_col])
                 except Exception:
                     r_val = 5.0
-            d_val = str(row[date_col]) if date_col and pd.notna(row[date_col]) else "Recent"
-            v_val = bool(row[verif_col]) if verif_col and pd.notna(row[verif_col]) else False
+                    
+            raw_d = row.get(date_col) if date_col else None
+            d_val = str(raw_d).strip() if raw_d is not None and str(raw_d).lower() not in ("nan", "none", "null") else "Recent"
+            
+            raw_v = row.get(verif_col) if verif_col else False
+            if isinstance(raw_v, str):
+                v_val = raw_v.strip().lower() in ("true", "1", "yes", "verified")
+            else:
+                v_val = bool(raw_v)
             
             reviews.append({
                 "reviewer_name": u_val,
